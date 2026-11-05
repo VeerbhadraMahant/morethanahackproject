@@ -23,6 +23,9 @@ def team_of_slots(meta_path):
     slots = [p.get("teamId") for p in root.iter("Player")]
     if not slots:
         raise ValueError("{}: no Player entries".format(meta_path))
+    unknown = set(slots) - set(team_ids)
+    if unknown:
+        raise ValueError("{}: Player teamId not in Teams: {}".format(meta_path, sorted(map(str, unknown))))
     return np.array([0 if t == team_ids[0] else 1 for t in slots], dtype=np.int8)
 
 
@@ -40,7 +43,7 @@ def _parse(raw_path, n_slots, n_frames, pitch):
     ball_speed = np.full(n_frames, np.nan, np.float32)
     players = np.full((n_frames, n_slots, 2), np.nan, np.float32)
     player_speed = np.full((n_frames, n_slots), np.nan, np.float32)
-    bad = 0
+    bad = good = 0
     with open(raw_path) as handle:
         for line in handle:
             if not line.strip():
@@ -56,11 +59,15 @@ def _parse(raw_path, n_slots, n_frames, pitch):
             except (ValueError, IndexError):
                 bad += 1
                 continue
+            good += 1
             for s, (x, y, sp) in enumerate(parsed):
                 players[i, s] = (x * length, y * width)
                 player_speed[i, s] = sp
             ball[i] = (bx * length, by * width)
             ball_speed[i] = bs
+    # A format/slot-count mismatch makes every line "malformed": fail loudly, never cache NaNs.
+    if good == 0 or bad > max(10, 0.01 * (good + bad)):
+        raise ValueError("{}: {} malformed vs {} parsed lines".format(raw_path, bad, good))
     return dict(ball=ball, ball_speed=ball_speed, players=players, player_speed=player_speed,
                 n_malformed=bad)
 
@@ -76,22 +83,31 @@ def load_tracking(game=GAME, use_cache=True, paths=None, n_frames=None, cache_di
     meta_path, raw_path = paths or require(["atd_meta", "atd_raw"], game)
     n_frames = n_frames or GAMES[game]["n_video_frames"]
     pitch = np.array(GAMES[game]["pitch"], dtype=np.float32)
-    st = os.stat(raw_path)
-    stamp = np.array([st.st_size, st.st_mtime_ns, n_frames], dtype=np.int64)
+    if paths and not cache_dir:
+        use_cache = False  # explicit paths must never read or overwrite the real game cache
+    rs, ms = os.stat(raw_path), os.stat(meta_path)
+    stamp = np.array([rs.st_size, rs.st_mtime_ns, ms.st_size, ms.st_mtime_ns, n_frames],
+                     dtype=np.int64)
     cache = os.path.join(cache_dir or CACHE_DIR, "{}_tracking.npz".format(game))
 
     if use_cache and os.path.isfile(cache):
-        with np.load(cache) as z:
-            if np.array_equal(z["stamp"], stamp):
-                out = {k: z[k] for k in z.files if k != "stamp"}
-                out["n_malformed"] = int(out["n_malformed"])
-                return out
+        try:
+            with np.load(cache) as z:
+                if np.array_equal(z["stamp"], stamp) and np.array_equal(z["pitch"], pitch):
+                    out = {k: z[k] for k in z.files if k != "stamp"}
+                    out["n_malformed"] = int(out["n_malformed"])
+                    return out
+        except Exception:  # truncated/corrupt cache: rebuild below
+            pass
 
     team = team_of_slots(meta_path)
     out = _parse(raw_path, len(team), n_frames, pitch)
     out.update(team=team, pitch=pitch)
-    os.makedirs(os.path.dirname(cache), exist_ok=True)
-    np.savez(cache, stamp=stamp, **out)
+    if use_cache:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        tmp = cache + ".tmp.npz"
+        np.savez(tmp, stamp=stamp, **out)
+        os.replace(tmp, cache)  # atomic: a crash never leaves a half-written cache
     return out
 
 
@@ -127,6 +143,8 @@ def main():
     ]
     for name, ok in checks:
         print("{}  {}".format("PASS" if ok else "FAIL", name))
+    if not all(ok for _, ok in checks):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
