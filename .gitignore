@@ -21,3 +21,9 @@ venv/
 .vscode/
 .idea/
 .DS_Store
+.claude/
+
+# Derived from the licensed data; never commit.
+cache/
+evaluation/reports/
+evaluation/scoreboard.csv
