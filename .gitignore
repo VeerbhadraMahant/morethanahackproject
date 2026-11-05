@@ -1,0 +1,23 @@
+# Licensed match data (incl. the organisers' README.docx) must never be committed: repo is public.
+data/
+*.mp4
+*_atd.txt
+*_atd.xml
+*_homography.csv
+*_smart_tagging.xml
+
+# Generated labels for the whole match; the repo regenerates them.
+*.csv
+!requirements*.txt
+!evaluation/gt/*_possession_gt_public.csv
+!evaluation/results/baseline_*.csv
+*_possession_gt.csv
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
