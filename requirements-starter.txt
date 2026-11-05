@@ -9,7 +9,7 @@
 -r requirements.txt
 
 kloppy==3.18.0
-matplotlib
+matplotlib==3.11.2
 
-# For the notebooks in starter/
+# For the notebooks in starter/ (not installed here, so left unpinned)
 notebook
