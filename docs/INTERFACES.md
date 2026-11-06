@@ -100,3 +100,64 @@ the slower the players walk (0.93 m/s in gaps over 30 s vs 2.16 m/s with the bal
   teammates. Evidence expires after `expire` frames (3 s — the longest a pass between teammates
   takes) without opponent control. Back-dated to the first frame of the first counted touch.
 - `run_all.py` uses `stoppage_dead` instead of `dead_ball`.
+
+# v3 changes
+
+Motivation (aggregate diagnostics of v2, no ground truth): only 11% of live time has the ball
+missing, but there our team agrees with the Smart Tagging phase team on just 70% of frames (80%
+elsewhere). Two candidate rules were checked and **dropped**: "restart team = opponent of the last
+toucher" agreed with the tagged set-piece team on 9/21 restarts (chance level), and visible-ball
+stoppages cover only 1.2% of live time.
+
+## G — `synx/hmm.py` (new): Viterbi decoder for H vs A inside live stretches
+Dead-ball frames stay exactly as `stoppage_dead` decides (D); the decoder only chooses H or A on
+graded live frames. Ungraded → X. Each live stretch (maximal run of graded & ~dead) is decoded
+independently with a 2-state Viterbi minimising total cost:
+- `tag_evidence(tags, n) -> int8 (N,)`: per-frame team implied by Smart Tagging phases, -1 none.
+  Attacking codes give their `team`: BUILD UP, PROGRESSION, CREATING CHANCES, ATTACKING
+  TRANSITION, BALL IN FINAL THIRD, BALL IN THE BOX, PLAYERS IN THE BOX, LONG BALL. Defending
+  codes give the *other* team: DEFENDING IN ATTACKING THIRD, DEFENDING IN MIDDLE THIRD,
+  DEFENDING IN DEFENSIVE THIRD, DEFENSIVE TRANSITION. Tags with team None are ignored; frames
+  where tags imply both teams → -1. SET PIECES and GOALS are not used here.
+- `decode_hmm(control, dead, graded, kickoff_team, set_pieces, tag_team, c_ctrl=1.0, c_tag=0.04,
+  switch=10.0) -> array (N,)` of 'H' 'A' 'D' 'X':
+  - per-frame cost of being in state k: `c_ctrl` if `control` names the other team; `c_tag` if
+    `tag_team` names the other team; 0 otherwise.
+    `c_ctrl=1.0`: one frame of a player on the ball is the unit of evidence.
+    `c_tag=0.04` (= 1/25): one second of phase tag counts like one frame of control — tags are
+    automatic, phase-level (~1 s resolution) and imperfect, so they decide only where there is no
+    control evidence (ball missing).
+  - `switch=10.0`: cost of a possession change — the opponent needs about 10 frames (0.4 s, two
+    clean touches) more evidence than the current team to take over; shorter flickers are
+    touches/deflections. Viterbi places the switch at the cost-optimal frame (no separate
+    back-dating rule).
+  - start prior: at a half's first live stretch add `switch` to every frame-0 state that is not
+    `kickoff_team[half]`; after a stoppage, the same with the set-piece team whose start lies in
+    `[dead_start - 50, live_start + 25]` (latest wins, team known). No prior otherwise.
+  - Ties broken towards the previous state (no gratuitous switch).
+- `shortcut:` H/A emission is binary per signal; graded confidences (distance, duel) are a v4 idea.
+
+## H — `synx/pipeline.py` (new) and `run_all.py`
+- `predict(data, tags, decoder="v2") -> labels (N,)`: the full chain from a `load_tracking` dict
+  and `load_tags` list (fill → speed → control → ball_out → stoppage_dead → `build_spells` for
+  "v2" or `decode_hmm` for "hmm"). No I/O, no printing. Deterministic.
+- `run_all.py [--decoder v2|hmm]` (default **hmm** once merged) calls `predict`, writes
+  `Synx.csv`, runs the validator, prints aggregates only (as before).
+
+## I — `synx/scorecard.py` (new): label-free evaluation, no ground truth
+`python -m synx.scorecard` runs `predict` for both decoders and prints, per decoder, aggregates only:
+- **structure**: possessions, median and 10th-percentile possession length (s), possessions < 2 s,
+  % graded dead, switches per minute;
+- **robustness**: re-run `predict` on a copy of the tracking with the ball additionally removed
+  on random 1-second chunks covering 10% of graded ball-visible frames (3 fixed seeds:
+  0, 1, 2); report mean % of graded frames whose label changes and mean change in possession
+  count. A good method barely moves when evidence is lost;
+- **evidence agreement**: % of live frames with `control >= 0` where the label equals the control
+  team; % of tag-covered live frames where it equals `tag_evidence` — **flagged as a decoder input
+  for hmm (not a fair comparison)**.
+
+## Pre-registered selection rule (written before any v3 result)
+Submit `hmm` instead of `v2` only if, on the scorecard: robustness label change is lower,
+possessions < 2 s are not higher, and possessions and % dead stay within football-plausible
+ranges (150–350 possessions; 35–50% dead). Otherwise submit `v2`. The public 5-minute window is
+used once, afterwards, only to confirm the chosen file runs through the official scorer.
