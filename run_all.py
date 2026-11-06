@@ -14,7 +14,8 @@ from synx.ball_possession import control  # noqa: E402
 from synx.data import load_tracking  # noqa: E402
 from synx.missing_ball import ball_speed, fill_ball  # noqa: E402
 from synx.pitch import ball_out, kickoff_team, load_tags, set_piece_starts  # noqa: E402
-from synx.spells import build_spells, dead_ball, graded_mask  # noqa: E402
+from synx.spells import build_spells, graded_mask  # noqa: E402
+from synx.stoppage import stoppage_dead  # noqa: E402
 
 
 def main():
@@ -27,7 +28,8 @@ def main():
     sp_frames, sp_teams = set_piece_starts(tags)
     graded = graded_mask(GAME)
     out = ball_out(data["ball"], data["pitch"])  # observed ball only: no interpolated exits
-    dead = dead_ball(out, ~np.isnan(data["ball"]).any(axis=1), sp_frames, graded, KICKOFF_VIDEO_FRAMES)
+    dead = stoppage_dead(~np.isnan(data["ball"]).any(axis=1), out, data["player_speed"], sp_frames,
+                         graded, KICKOFF_VIDEO_FRAMES)
     labels = build_spells(ctrl, dead, graded, kickoff_team(tags), (sp_frames, sp_teams))
 
     path = os.path.join(ROOT, "Synx.csv")
