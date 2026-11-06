@@ -1,5 +1,6 @@
 """Full pipeline: tracking -> labels -> Synx.csv. Prints aggregates only, never rows."""
 
+import argparse
 import os
 import subprocess
 import sys
@@ -9,28 +10,17 @@ import numpy as np
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 from games import GAME, GAMES  # noqa: E402
-from starter.load_smart_tagging import KICKOFF_VIDEO_FRAMES  # noqa: E402
-from synx.ball_possession import control  # noqa: E402
 from synx.data import load_tracking  # noqa: E402
-from synx.missing_ball import ball_speed, fill_ball  # noqa: E402
-from synx.pitch import ball_out, kickoff_team, load_tags, set_piece_starts  # noqa: E402
-from synx.spells import build_spells, graded_mask  # noqa: E402
-from synx.stoppage import stoppage_dead  # noqa: E402
+from synx.pipeline import predict  # noqa: E402
+from synx.pitch import load_tags  # noqa: E402
+from synx.spells import graded_mask  # noqa: E402
 
 
 def main():
-    data = load_tracking(GAME)
-    ball, _ = fill_ball(data["ball"])
-    speed = ball_speed(ball)
-    ctrl = control(ball, data["players"], data["team"], speed)
-
-    tags = load_tags(GAME)
-    sp_frames, sp_teams = set_piece_starts(tags)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--decoder", choices=("v2", "hmm"), default="hmm")
+    labels = predict(load_tracking(GAME), load_tags(GAME), parser.parse_args().decoder)
     graded = graded_mask(GAME)
-    out = ball_out(data["ball"], data["pitch"])  # observed ball only: no interpolated exits
-    dead = stoppage_dead(~np.isnan(data["ball"]).any(axis=1), out, data["player_speed"], sp_frames,
-                         graded, KICKOFF_VIDEO_FRAMES)
-    labels = build_spells(ctrl, dead, graded, kickoff_team(tags), (sp_frames, sp_teams))
 
     path = os.path.join(ROOT, "Synx.csv")
     with open(path, "w", newline="") as f:
