@@ -27,7 +27,7 @@ Put the match data under `data/tactical/...`, or point `MTAH_DATA_DIR` at the da
     python evaluation/run_evaluation.py                   # score everything in evaluation/results
     python evaluation/validate_submission.py Synx.csv     # format check before submitting
 
-`python run_all.py` is the one command that produces `Synx.csv`. The method is described in `docs/Synx.md`.
+`python run_all.py` is the one command that produces `Synx.csv`. The method and every parameter's reason are in `docs/INTERFACES.md`.
 
 ## Data rules
 

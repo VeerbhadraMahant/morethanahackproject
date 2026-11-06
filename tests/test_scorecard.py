@@ -39,7 +39,7 @@ class DropTest(unittest.TestCase):
         vis = self.graded & ~np.isnan(orig).any(axis=1)
         gone = vis & np.isnan(a["ball"]).any(axis=1)
         self.assertGreaterEqual(gone.sum(), 0.10 * vis.sum())
-        self.assertLess(gone.sum(), 0.10 * vis.sum() + 25)
+        self.assertLess(gone.sum(), 0.10 * vis.sum() + 51)  # overshoot < one chunk
         self.assertIs(a["players"], self.data["players"])
         self.assertFalse(np.array_equal(
             a["ball"], drop_ball_chunks(self.data, self.graded, 0.10, 1)["ball"], equal_nan=True))

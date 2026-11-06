@@ -18,6 +18,8 @@ from synx.stoppage import stoppage_dead  # noqa: E402
 
 def predict(data, tags, decoder="v2"):
     """labels (N,) of 'H' 'A' 'D' 'X' from a load_tracking dict and a load_tags list."""
+    if decoder not in ("v2", "hmm"):
+        raise ValueError("decoder must be 'v2' or 'hmm'")
     ball, _ = fill_ball(data["ball"])
     speed = ball_speed(ball)
     ctrl = control(ball, data["players"], data["team"], speed)

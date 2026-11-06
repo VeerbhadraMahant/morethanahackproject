@@ -30,8 +30,9 @@ def structure(labels, graded, fps=FPS):
                 switches_per_min=switches / max(len(live) / fps / 60, 1e-9))
 
 
-def drop_ball_chunks(data, graded, frac, seed, chunk=25):
-    """Copy of data with the ball removed on random 1-second chunks (a ball hidden for about a
+def drop_ball_chunks(data, graded, frac, seed, chunk=51):
+    """Copy of data with the ball removed on random 1-second chunks of 51 frames, just over fill_ball's 25-frame
+    interpolation limit so the loss is real (a ball hidden for about a
     second is what a real tracking loss looks like) until frac of graded ball-visible frames
     are gone. Windows are sampled without replacement; the input is not modified."""
     ball = data["ball"].copy()

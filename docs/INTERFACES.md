@@ -141,7 +141,7 @@ independently with a 2-state Viterbi minimising total cost:
 - `predict(data, tags, decoder="v2") -> labels (N,)`: the full chain from a `load_tracking` dict
   and `load_tags` list (fill → speed → control → ball_out → stoppage_dead → `build_spells` for
   "v2" or `decode_hmm` for "hmm"). No I/O, no printing. Deterministic.
-- `run_all.py [--decoder v2|hmm]` (default **hmm** once merged) calls `predict`, writes
+- `run_all.py [--decoder v2|hmm]` (default **v2**: see the selection outcome below) calls `predict`, writes
   `Synx.csv`, runs the validator, prints aggregates only (as before).
 
 ## I — `synx/scorecard.py` (new): label-free evaluation, no ground truth
@@ -161,3 +161,14 @@ Submit `hmm` instead of `v2` only if, on the scorecard: robustness label change 
 possessions < 2 s are not higher, and possessions and % dead stay within football-plausible
 ranges (150–350 possessions; 35–50% dead). Otherwise submit `v2`. The public 5-minute window is
 used once, afterwards, only to confirm the chosen file runs through the official scorer.
+
+## Selection outcome (v3, label-free scorecard, robustness chunks of 51 frames)
+| | v2 | hmm |
+|---|---|---|
+| possessions | 218 | 225 |
+| possessions < 2 s | **16** | 28 |
+| label change under extra ball loss | 1.60% | **0.91%** |
+| % graded dead | 42.1% | 42.1% |
+
+hmm is more robust but produces more possessions under 2 s, which the pre-registered rule forbids:
+**v2 is submitted**. `run_all.py` defaults to v2.
