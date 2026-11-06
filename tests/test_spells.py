@@ -8,12 +8,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from synx.spells import build_spells, dead_ball, graded_mask  # noqa: E402
 
 
-def lab(control, dead=None, graded=None, kt=None, sp=None, confirm=3):
+def lab(control, dead=None, graded=None, kt=None, sp=None, confirm=3, **kw):
     control = np.array(control, dtype=np.int8)
     n = len(control)
     dead = np.zeros(n, bool) if dead is None else np.array(dead, bool)
     graded = np.ones(n, bool) if graded is None else np.array(graded, bool)
-    return "".join(build_spells(control, dead, graded, kt or {1: 0, 2: 0}, sp, confirm))
+    return "".join(build_spells(control, dead, graded, kt or {1: 0, 2: 0}, sp, confirm, **kw))
 
 
 class BuildSpells(unittest.TestCase):
@@ -50,6 +50,29 @@ class BuildSpells(unittest.TestCase):
 
     def test_stale_opponent_touch_expires(self):
         self.assertEqual(lab([0, 1, 1, 1] + [-1] * 500 + [1] * 24, confirm=25).count("A"), 0)
+
+    def test_pass_of_two_touches_switches_and_back_dates(self):
+        # two 3-frame opponent touches with a gap; confirm is large so only the pass rule applies
+        self.assertEqual(lab([0, 0, 1, 1, 1, -1, 1, 1, 1, -1], confirm=25), "HHAAAAAAAA")
+
+    def test_touches_split_by_current_team_control_do_not_switch(self):
+        self.assertEqual(lab([0, 1, 1, 1, 0, 1, 1, 1, -1], confirm=25), "H" * 9)
+
+    def test_flicker_is_not_a_touch(self):
+        self.assertEqual(lab([0, 1, 1, -1, 1, 1, -1, 1, 1, 1], confirm=25), "H" * 10)
+
+    def test_touches_further_apart_than_expire_do_not_combine(self):
+        c = [0, 1, 1, 1] + [-1] * 10 + [1, 1, 1, -1]
+        self.assertEqual(lab(c, confirm=25, expire=5), "H" * len(c))
+        self.assertEqual(lab(c, confirm=25, expire=20).count("A"), len(c) - 1)
+
+    def test_restart_team_from_set_piece_before_live_start(self):
+        # dead 2..61; set piece at 8 is inside the dead stretch, 6 s before live start at 62 (> confirm)
+        n = 70
+        dead = [0, 0] + [1] * 60 + [0] * 8
+        sp = (np.array([8]), np.array([1]))
+        out = lab([-1] * n, dead=dead, sp=sp)
+        self.assertEqual(out[62:], "A" * 8)
 
     def test_touch_then_sustained_control_back_dated(self):
         self.assertEqual(lab([0, 0, 1, -1, 1, 1, 1], confirm=3), "HHAAAAA")
