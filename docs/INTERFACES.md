@@ -66,3 +66,37 @@ Every parameter default below carries a one-line football reason in its docstrin
   spells → write `Synx.csv` (`frame,label`, 199,319 rows) → run
   `evaluation/validate_submission.py Synx.csv` → print aggregates only: label counts, number of
   possessions, mean possession length (s), switches per minute, % graded frames dead.
+
+# v2 changes
+
+Motivation (aggregate diagnostics of v1, no ground truth involved): 57 of 59 set pieces fell inside
+"live" stretches; 99.9% of missing-ball frames sit in gaps longer than 3 s, and the longer the gap
+the slower the players walk (0.93 m/s in gaps over 30 s vs 2.16 m/s with the ball visible).
+
+## F — `synx/stoppage.py` (new)
+- `stoppage_dead(observed, out, player_speed, set_piece_frames, graded, kickoffs,
+  sp_before=50, sp_after=125, long_gap=250, walk_speed=1.5, min_out=5) -> bool (N,)`.
+  A graded frame is dead if any of:
+  - **(a) restart gap**: it lies in a ball-missing gap (maximal run of `~observed` within one
+    graded block, from the frame after the last sighting to the frame before the next one) and a
+    set-piece start falls in `[gap_start - sp_before, gap_end + sp_after)` — 2 s before / 5 s
+    after: the tag brackets the restart, and the ball reappears when it is put back in play.
+  - **(b) quiet gap**: it lies in a ball-missing gap of at least `long_gap` frames (10 s — live
+    play rarely hides the ball that long) whose mean player speed (`nanmean` over slots and
+    frames of `player_speed`) is below `walk_speed` (1.5 m/s — players walking: play stopped).
+  - **(c) out**: `spells.dead_ball(out_f, observed, set_piece_frames, graded, kickoffs)` where
+    `out_f` is `out` with runs of observed-out frames shorter than `min_out` (0.2 s, tracking
+    noise) removed. This also keeps the pre-kickoff rule.
+  - gaps of 3–10 s with no set piece and fast players stay live (no guess).
+
+## E — `build_spells` v2 (same signature plus `min_touch=3, expire=75`)
+- **restart team**: the latest set piece whose start lies in
+  `[dead_start - 50, live_start + confirm]` of the dead stretch just ended (the tag can start
+  several seconds before the ball reappears), its team if known; else first control team as v1.
+- **switch**: the opponent takes over when, since the current team's last control frame, it has
+  either `confirm` (1 s) accumulated control frames, **or** 2 separate touches — maximal runs of
+  opponent control of at least `min_touch` frames (0.12 s, a real touch, not a one-frame
+  proximity flicker) separated by at least one non-control frame: a completed pass between
+  teammates. Evidence expires after `expire` frames (3 s — the longest a pass between teammates
+  takes) without opponent control. Back-dated to the first frame of the first counted touch.
+- `run_all.py` uses `stoppage_dead` instead of `dead_ball`.
