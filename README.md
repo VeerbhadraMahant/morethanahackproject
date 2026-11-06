@@ -19,10 +19,15 @@ Put the match data under `data/tactical/...`, or point `MTAH_DATA_DIR` at the da
 
 ## Commands
 
-    python -m synx.data                                   # build the tracking cache
+    python -m synx.data                                   # build the tracking cache (once)
+    python run_all.py                                     # regenerate Synx.csv and validate it
+    python run_all.py --decoder v2                        # same, with the rule-based v2 decoder (default: hmm)
+    python -m synx.scorecard                              # label-free evaluation of both decoders (aggregates only)
     python starter/baseline.py                            # regenerate and score the organisers' baselines
     python evaluation/run_evaluation.py                   # score everything in evaluation/results
     python evaluation/validate_submission.py Synx.csv     # format check before submitting
+
+`python run_all.py` is the one command that produces `Synx.csv`. The method is described in `docs/Synx.md`.
 
 ## Data rules
 
