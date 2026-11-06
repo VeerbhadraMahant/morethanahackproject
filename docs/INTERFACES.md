@@ -46,7 +46,8 @@ Every parameter default below carries a one-line football reason in its docstrin
 
 ## E — `synx/spells.py` + `run_all.py`
 - `graded_mask(game="BAR-ATH") -> bool (N,)` from `games.half_video_blocks`.
-- `dead_ball(out, set_piece_frames, graded, kickoffs, max_restart=1500) -> bool (N,)`:
+- `dead_ball(out, observed, set_piece_frames, graded, kickoffs, max_restart=1500) -> bool (N,)`
+  (`observed`: raw ball present; `out` is forward-filled across unobserved frames, never across ungraded):
   - graded frames before each half's kickoff (`starter.load_smart_tagging.KICKOFF_VIDEO_FRAMES`)
     are dead;
   - each run of `out` frames is dead from its first frame until the next set-piece start if that

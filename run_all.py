@@ -27,7 +27,7 @@ def main():
     sp_frames, sp_teams = set_piece_starts(tags)
     graded = graded_mask(GAME)
     out = ball_out(data["ball"], data["pitch"])  # observed ball only: no interpolated exits
-    dead = dead_ball(out, sp_frames, graded, KICKOFF_VIDEO_FRAMES)
+    dead = dead_ball(out, ~np.isnan(data["ball"]).any(axis=1), sp_frames, graded, KICKOFF_VIDEO_FRAMES)
     labels = build_spells(ctrl, dead, graded, kickoff_team(tags), (sp_frames, sp_teams))
 
     path = os.path.join(ROOT, "Synx.csv")

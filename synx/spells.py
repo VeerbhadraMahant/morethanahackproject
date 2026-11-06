@@ -26,7 +26,7 @@ def _runs(flag):
     return list(zip(np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)))
 
 
-def dead_ball(out, set_piece_frames, graded, kickoffs, max_restart=1500):
+def dead_ball(out, observed, set_piece_frames, graded, kickoffs, max_restart=1500):
     """bool (N,): ball not in play.
 
     max_restart=1500 (60 s): restarts are taken within a minute, so a set piece that soon after
@@ -34,7 +34,11 @@ def dead_ball(out, set_piece_frames, graded, kickoffs, max_restart=1500):
     kickoffs: {half: video frame of the kickoff}; graded frames before it are dead (pre-match).
     shortcut: fouls/offsides with the ball on the pitch are not detected in v1.
     """
-    dead = np.zeros(len(out), dtype=bool)
+    n = len(out)
+    obs = observed | ~graded  # ungraded frames reset the state, so halftime cannot leak
+    idx = np.maximum.accumulate(np.where(obs, np.arange(n), 0))
+    out = out[idx] & graded  # forward-fill out across unobserved (NaN) frames
+    dead = np.zeros(n, dtype=bool)
     for kick in (kickoffs.values() if isinstance(kickoffs, dict) else kickoffs):
         not_graded = np.flatnonzero(~graded[:kick])
         first = not_graded[-1] + 1 if len(not_graded) else 0  # start of the half's graded block
@@ -68,6 +72,7 @@ def build_spells(control, dead, graded, kickoff_team, set_pieces=None, confirm=2
         if run not in seen_runs:  # first live stretch of a half: the kickoff team starts
             seen_runs.add(run)
             team = kickoff_team.get(run, -1)
+            last_team = max(team, 0)  # fallback for this half, not the previous half's team
         else:  # restart after a stoppage: the set piece's team if its tag starts near here
             near = np.flatnonzero(np.abs(sp_frames - a) <= confirm)
             if len(near):
@@ -75,16 +80,17 @@ def build_spells(control, dead, graded, kickoff_team, set_pieces=None, confirm=2
         if team == -1:  # first team seen in control, filled back to the restart frame
             seen = control[a:b][control[a:b] >= 0]
             team = int(seen[0]) if len(seen) else last_team
-        cur, count, first_opp = team, 0, a
+        cur, count, first_opp, last_opp = team, 0, a, a
         labels[a:b] = TEAM_LETTER[cur]
         for t in range(a, b):
             c = int(control[t])
             if c == cur:
                 count = 0
             elif c >= 0:
-                if count == 0:
-                    first_opp = t
+                if count == 0 or t - last_opp > confirm:  # stale touch was a deflection
+                    count, first_opp = 0, t
                 count += 1
+                last_opp = t
                 if count >= confirm:
                     cur, count = c, 0
                     labels[first_opp:b] = TEAM_LETTER[cur]

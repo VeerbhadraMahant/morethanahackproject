@@ -48,22 +48,41 @@ class BuildSpells(unittest.TestCase):
         out = lab([-1] * 6, graded=[1] * 6, kt={1: -1, 2: -1})
         self.assertNotIn("X", out)
 
+    def test_stale_opponent_touch_expires(self):
+        self.assertEqual(lab([0, 1, 1, 1] + [-1] * 500 + [1] * 24, confirm=25).count("A"), 0)
+
+    def test_touch_then_sustained_control_back_dated(self):
+        self.assertEqual(lab([0, 0, 1, -1, 1, 1, 1], confirm=3), "HHAAAAA")
+
 
 class DeadBall(unittest.TestCase):
     def test_pre_kickoff_dead(self):
         graded = np.array([0, 1, 1, 1, 1, 1], bool)
-        dead = dead_ball(np.zeros(6, bool), [], graded, {"1st Half": 4})
+        dead = dead_ball(np.zeros(6, bool), np.ones(6, bool), [], graded, {"1st Half": 4})
         self.assertEqual(dead.tolist(), [False, True, True, True, False, False])
 
     def test_out_run_ended_by_set_piece(self):
         out = np.array([0, 1, 1, 0, 0, 0, 0, 0], bool)
-        dead = dead_ball(out, np.array([6]), np.ones(8, bool), {}, max_restart=10)
+        dead = dead_ball(out, np.ones(8, bool), np.array([6]), np.ones(8, bool), {}, max_restart=10)
         self.assertEqual(dead.tolist(), [False, True, True, True, True, True, False, False])
 
     def test_out_run_ended_by_ball_back_when_set_piece_too_late(self):
         out = np.array([0, 1, 1, 0, 0, 0, 0, 0], bool)
-        dead = dead_ball(out, np.array([7]), np.ones(8, bool), {}, max_restart=3)
+        dead = dead_ball(out, np.ones(8, bool), np.array([7]), np.ones(8, bool), {}, max_restart=3)
         self.assertEqual(dead.tolist(), [False, True, True, False, False, False, False, False])
+
+    def test_out_persists_across_nan_until_observed(self):
+        out = np.array([0, 1, 0, 0, 0, 0, 0, 0], bool)
+        obs = np.array([1, 1, 0, 0, 0, 1, 1, 1], bool)
+        dead = dead_ball(out, obs, np.array([], int), np.ones(8, bool), {}, max_restart=3)
+        self.assertEqual(dead.tolist(), [False, True, True, True, True, False, False, False])
+
+    def test_out_does_not_leak_past_ungraded_block(self):
+        out = np.array([0, 1, 0, 0, 0, 0, 0], bool)
+        obs = np.array([1, 1, 0, 0, 0, 0, 0], bool)
+        graded = np.array([1, 1, 1, 0, 0, 1, 1], bool)
+        dead = dead_ball(out, obs, np.array([], int), graded, {}, max_restart=3)
+        self.assertEqual(dead.tolist(), [False, True, True, False, False, False, False])
 
 
 class Graded(unittest.TestCase):
