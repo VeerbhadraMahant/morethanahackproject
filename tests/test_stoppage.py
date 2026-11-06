@@ -38,6 +38,11 @@ class Stoppage(unittest.TestCase):
         out = np.zeros(N, bool)
         out[300:303] = True
         self.assertFalse(run(None, out=out)[300:303].any())
+
+    def test_short_out_then_lost_is_real_exit(self):
+        out = np.zeros(N, bool)
+        out[200:203] = True  # seen out briefly, then tracking loses it: a real exit
+        self.assertTrue(run((203, 600), out=out)[200:600].all())
         out[500:506] = True
         self.assertTrue(run(None, out=out)[500:506].all())
 

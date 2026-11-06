@@ -2,6 +2,7 @@
 
 import os
 import sys
+import warnings
 
 import numpy as np
 
@@ -26,10 +27,13 @@ def stoppage_dead(observed, out, player_speed, set_piece_frames, graded, kickoff
         for s, e in _runs(~observed[block_start:block_end]):
             s, e = s + block_start, e + block_start  # e exclusive
             near_sp = ((sp >= s - sp_before) & (sp < e - 1 + sp_after)).any()
-            quiet = e - s >= long_gap and np.nanmean(player_speed[s:e]) < walk_speed
+            with np.errstate(all="ignore"), warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN gap -> NaN -> not quiet
+                quiet = e - s >= long_gap and np.nanmean(player_speed[s:e]) < walk_speed
             dead[s:e] = near_sp or quiet
     out_f = out.copy()
     for s, e in _runs(out & observed):
-        if e - s < min_out:
+        # noise only if tracking sees the ball back in play right after; out-then-lost is a real exit
+        if e - s < min_out and e < len(observed) and observed[e] and graded[e]:
             out_f[s:e] = False
     return dead | dead_ball(out_f, observed, sp, graded, kickoffs)
