@@ -21,7 +21,7 @@ Put the match data under `data/tactical/...`, or point `MTAH_DATA_DIR` at the da
 
     python -m synx.data                                   # build the tracking cache (once)
     python run_all.py                                     # regenerate Synx.csv and validate it
-    python run_all.py --decoder v2                        # same, with the rule-based v2 decoder (default: hmm)
+    python run_all.py --decoder hmm                       # same, with the experimental HMM decoder (default: v2)
     python -m synx.scorecard                              # label-free evaluation of both decoders (aggregates only)
     python starter/baseline.py                            # regenerate and score the organisers' baselines
     python evaluation/run_evaluation.py                   # score everything in evaluation/results

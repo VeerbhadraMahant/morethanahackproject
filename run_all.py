@@ -18,7 +18,8 @@ from synx.spells import graded_mask  # noqa: E402
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--decoder", choices=("v2", "hmm"), default="hmm")
+    # v2 is the submitted decoder: hmm failed the pre-registered rule (more possessions < 2 s)
+    parser.add_argument("--decoder", choices=("v2", "hmm"), default="v2")
     labels = predict(load_tracking(GAME), load_tags(GAME), parser.parse_args().decoder)
     graded = graded_mask(GAME)
 
